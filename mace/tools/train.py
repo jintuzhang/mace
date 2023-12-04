@@ -348,9 +348,6 @@ def evaluate(
         if output.get("charges") is not None and batch.charges is not None:
             C_computed = True
             delta_cs_list.append(batch.charges - output["charges"])
-            delta_es_per_atom_list.append(
-                (batch.charges - output["charges"]) / (batch.ptr[1:] - batch.ptr[:-1])
-            )
 
     avg_loss = total_loss / len(data_loader)
 
