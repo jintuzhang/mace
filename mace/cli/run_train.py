@@ -89,6 +89,16 @@ def main() -> None:
         args.compute_forces = False
         compute_virials = False
         args.compute_stress = False
+    if args.model == "AtomicChargesMACE":
+        atomic_energies = None
+        dipole_only = False
+        charges_only = True
+        compute_dipole = False
+        compute_energy = False
+        compute_charges = True
+        args.compute_forces = False
+        compute_virials = False
+        args.compute_stress = False
     else:
         dipole_only = False
         if args.model == "EnergyDipolesMACE":
@@ -188,6 +198,13 @@ def main() -> None:
             forces_weight=args.forces_weight,
             dipole_weight=args.dipole_weight,
         )
+    elif args.loss == "charges":
+        assert (
+            charges_only is True
+        ), "charges loss can only be used with AtomicChargesMACE model"
+        loss_fn = modules.ChargesSingleLoss(
+            charges_weight=args.charges_weight,
+        )
     else:
         # Unweighted Energy and Forces loss by default
         loss_fn = modules.WeightedEnergyForcesLoss(energy_weight=1.0, forces_weight=1.0)
@@ -210,6 +227,7 @@ def main() -> None:
         "virials": compute_virials,
         "stress": args.compute_stress,
         "dipoles": compute_dipole,
+        "charges": compute_charges,
     }
     logging.info(f"Selected the following outputs: {output_args}")
 
@@ -322,6 +340,21 @@ def main() -> None:
             args.error_table == "EnergyDipoleRMSE"
         ), "Use error_table EnergyDipoleRMSE with AtomicDipolesMACE model"
         model = modules.EnergyDipolesMACE(
+            **model_config,
+            correlation=args.correlation,
+            gate=modules.gate_dict[args.gate],
+            interaction_cls_first=modules.interaction_classes[
+                "RealAgnosticInteractionBlock"
+            ],
+            MLP_irreps=o3.Irreps(args.MLP_irreps),
+        )
+    elif args.model == "AtomicChargesMACE":
+        # std_df = modules.scaling_classes["rms_dipoles_scaling"](train_loader)
+        assert args.loss == "charges", "Use charges loss with AtomicChargesMACE model"
+        assert (
+            args.error_table == "ChargesRMSE"
+        ), "Use error_table ChargesRMSE with AtomicChargesMACE model"
+        model = modules.AtomicChargesMACE(
             **model_config,
             correlation=args.correlation,
             gate=modules.gate_dict[args.gate],

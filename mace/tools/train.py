@@ -181,6 +181,11 @@ def train(
                 logging.info(
                     f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_E_per_atom={error_e:.1f} meV, RMSE_F={error_f:.1f} meV / A, RMSE_Mu_per_atom={error_mu:.2f} mDebye"
                 )
+            elif log_errors == "ChargesRMSE":
+                error_c = eval_metrics["rmse_c"] * 1e3
+                logging.info(
+                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_C={error_c:.2f} C"
+                )
             if log_wandb:
                 wandb_log_dict = {
                     "epoch": epoch,
@@ -288,6 +293,8 @@ def evaluate(
     delta_mus_per_atom_list = []
     mus_list = []
     batch = None  # for pylint
+    C_computed = False
+    delta_cs_list = []
 
     start_time = time.time()
     for batch in data_loader:
@@ -338,6 +345,12 @@ def evaluate(
                 / (batch.ptr[1:] - batch.ptr[:-1]).unsqueeze(-1)
             )
             mus_list.append(batch.dipole)
+        if output.get("charges") is not None and batch.charges is not None:
+            C_computed = True
+            delta_cs_list.append(batch.charges - output["charges"])
+            delta_es_per_atom_list.append(
+                (batch.charges - output["charges"]) / (batch.ptr[1:] - batch.ptr[:-1])
+            )
 
     avg_loss = total_loss / len(data_loader)
 
@@ -386,6 +399,11 @@ def evaluate(
         aux["rmse_mu_per_atom"] = compute_rmse(delta_mus_per_atom)
         aux["rel_rmse_mu"] = compute_rel_rmse(delta_mus, mus)
         aux["q95_mu"] = compute_q95(delta_mus)
+    if C_computed:
+        delta_cs = to_numpy(torch.cat(delta_cs_list, dim=0))
+        aux["mae_c"] = compute_mae(delta_cs)
+        aux["rmse_c"] = compute_rmse(delta_cs)
+        aux["q95_c"] = compute_q95(delta_cs)
 
     aux["time"] = time.time() - start_time
 

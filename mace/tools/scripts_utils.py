@@ -198,6 +198,12 @@ def create_error_table(
             "RMSE MU / mDebye / atom",
             "rel MU RMSE %",
         ]
+    elif table_type == "ChargesRMSE":
+        table.field_names = [
+            "config_type",
+            "MAE C / C",
+            "relative C MAE %",
+        ]
     for name, subset in all_collections:
         data_loader = torch_geometric.dataloader.DataLoader(
             dataset=[

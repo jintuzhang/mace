@@ -66,6 +66,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "DipoleRMSE",
             "DipoleMAE",
             "EnergyDipoleRMSE",
+            "ChargesRMSE"
         ],
         default="PerAtomRMSE",
     )
@@ -82,6 +83,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "ScaleShiftBOTNet",
             "AtomicDipolesMACE",
             "EnergyDipolesMACE",
+            "AtomicChargesMACE",
         ],
     )
     parser.add_argument(
@@ -290,6 +292,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "dipole",
             "huber",
             "energy_forces_dipole",
+            "charges",
         ],
     )
     parser.add_argument(
@@ -330,6 +333,9 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dipole_weight", help="weight of dipoles loss", type=float, default=1.0
+    )
+    parser.add_argument(
+        "--charges_weight", help="weight of charges loss", type=float, default=1.0
     )
     parser.add_argument(
         "--swa_dipole_weight",

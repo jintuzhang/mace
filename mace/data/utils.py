@@ -45,6 +45,7 @@ class Configuration:
     forces_weight: float = 1.0  # weight of config forces in loss
     stress_weight: float = 1.0  # weight of config stress in loss
     virials_weight: float = 1.0  # weight of config virial in loss
+    charges_weight: float = 1.0  # weight of config charges in loss
     config_type: Optional[str] = DEFAULT_CONFIG_TYPE  # config_type of config
 
 
@@ -134,6 +135,7 @@ def config_from_atoms(
     forces_weight = atoms.info.get("config_forces_weight", 1.0)
     stress_weight = atoms.info.get("config_stress_weight", 1.0)
     virials_weight = atoms.info.get("config_virials_weight", 1.0)
+    charges_weight = atoms.info.get("config_charges_weight", 1.0)
 
     # fill in missing quantities but set their weight to 0.0
     if energy is None:
@@ -148,6 +150,9 @@ def config_from_atoms(
     if virials is None:
         virials = np.zeros((3, 3))
         virials_weight = 0.0
+    if charges is None:
+        charges = np.zeros(np.shape(atoms.positions))
+        charges_weight = 0.0
 
     return Configuration(
         atomic_numbers=atomic_numbers,
@@ -163,6 +168,7 @@ def config_from_atoms(
         forces_weight=forces_weight,
         stress_weight=stress_weight,
         virials_weight=virials_weight,
+        charges_weight=charges_weight,
         config_type=config_type,
         pbc=pbc,
         cell=cell,
