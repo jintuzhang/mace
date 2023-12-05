@@ -93,48 +93,79 @@ def main():
     contributions_list = []
     stresses_list = []
     forces_collection = []
+    charges_collection = []
+    total_charge_list = []
+
+    if (model._get_name() == 'AtomicChargesMACE'):
+        assert args.compute_stress is False, 'Can not compute stress with a charge model'
+        compute_charges = True
+        compute_energy = False
+    else:
+        compute_charges = False
+        compute_energy = True
 
     for batch in data_loader:
         batch = batch.to(device)
         output = model(batch.to_dict(), compute_stress=args.compute_stress)
-        energies_list.append(torch_tools.to_numpy(output["energy"]))
+        if compute_energy:
+            energies_list.append(torch_tools.to_numpy(output["energy"]))
+            if args.compute_stress:
+                stresses_list.append(torch_tools.to_numpy(output["stress"]))
+
+            if args.return_contributions:
+                contributions_list.append(torch_tools.to_numpy(output["contributions"]))
+
+            forces = np.split(
+                torch_tools.to_numpy(output["forces"]),
+                indices_or_sections=batch.ptr[1:],
+                axis=0,
+            )
+            forces_collection.append(forces[:-1])  # drop last as its empty
+        if compute_charges:
+            charges = np.split(
+                torch_tools.to_numpy(output["charges"]),
+                indices_or_sections=batch.ptr[1:],
+                axis=0,
+            )
+            charges_collection.append(charges[:-1])  # drop last as its empty
+            total_charge_list.append(torch_tools.to_numpy(output["total_charge"]))
+
+    if compute_energy:
+        energies = np.concatenate(energies_list, axis=0)
+        forces_list = [
+            forces for forces_list in forces_collection for forces in forces_list
+        ]
+        assert len(atoms_list) == len(energies) == len(forces_list)
         if args.compute_stress:
-            stresses_list.append(torch_tools.to_numpy(output["stress"]))
+            stresses = np.concatenate(stresses_list, axis=0)
+            assert len(atoms_list) == stresses.shape[0]
 
         if args.return_contributions:
-            contributions_list.append(torch_tools.to_numpy(output["contributions"]))
-
-        forces = np.split(
-            torch_tools.to_numpy(output["forces"]),
-            indices_or_sections=batch.ptr[1:],
-            axis=0,
-        )
-        forces_collection.append(forces[:-1])  # drop last as its empty
-
-    energies = np.concatenate(energies_list, axis=0)
-    forces_list = [
-        forces for forces_list in forces_collection for forces in forces_list
-    ]
-    assert len(atoms_list) == len(energies) == len(forces_list)
-    if args.compute_stress:
-        stresses = np.concatenate(stresses_list, axis=0)
-        assert len(atoms_list) == stresses.shape[0]
-
-    if args.return_contributions:
-        contributions = np.concatenate(contributions_list, axis=0)
-        assert len(atoms_list) == contributions.shape[0]
+            contributions = np.concatenate(contributions_list, axis=0)
+            assert len(atoms_list) == contributions.shape[0]
+    if compute_charges:
+        total_charge = np.concatenate(total_charge_list, axis=0)
+        charges_list = [
+            charges for charges_list in charges_collection for charges in charges_list
+        ]
 
     # Store data in atoms objects
-    for i, (atoms, energy, forces) in enumerate(zip(atoms_list, energies, forces_list)):
-        atoms.calc = None  # crucial
-        atoms.info[args.info_prefix + "energy"] = energy
-        atoms.arrays[args.info_prefix + "forces"] = forces
+    if compute_energy:
+        for i, (atoms, energy, forces) in enumerate(zip(atoms_list, energies, forces_list)):
+            atoms.calc = None  # crucial
+            atoms.info[args.info_prefix + "energy"] = energy
+            atoms.arrays[args.info_prefix + "forces"] = forces
 
-        if args.compute_stress:
-            atoms.info[args.info_prefix + "stress"] = stresses[i]
+            if args.compute_stress:
+                atoms.info[args.info_prefix + "stress"] = stresses[i]
 
-        if args.return_contributions:
-            atoms.info[args.info_prefix + "BO_contributions"] = contributions[i]
+            if args.return_contributions:
+                atoms.info[args.info_prefix + "BO_contributions"] = contributions[i]
+    if compute_charges:
+        for i, (atoms, total_charge, charges) in enumerate(zip(atoms_list, total_charge, charges_list)):
+            atoms.calc = None  # crucial
+            atoms.info[args.info_prefix + "total_charge"] = total_charge
+            atoms.arrays[args.info_prefix + "charges"] = charges
 
     # Write atoms to output path
     ase.io.write(args.output, images=atoms_list, format="extxyz")
