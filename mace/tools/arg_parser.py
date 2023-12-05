@@ -483,6 +483,12 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default="",
     )
     parser.add_argument(
+        "--disable_error_table",
+        help="If skip calculating the error table after training",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--wandb_log_hypers",
         help="The hyperparameters to log in Weights and Biases",
         type=list,
