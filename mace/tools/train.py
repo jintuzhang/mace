@@ -184,7 +184,7 @@ def train(
             elif log_errors == "ChargesRMSE":
                 error_c = eval_metrics["rmse_c"] * 1e3
                 logging.info(
-                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_C={error_c:.2f} C"
+                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_C={error_c:.2f} mC"
                 )
             if log_wandb:
                 wandb_log_dict = {
