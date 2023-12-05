@@ -423,6 +423,7 @@ def main() -> None:
     swas = [False]
     if args.swa:
         assert dipole_only is False, "swa for dipole fitting not implemented"
+        assert charges_only is False, "swa for charges fitting not implemented"
         swas.append(True)
         if args.start_swa is None:
             args.start_swa = (
