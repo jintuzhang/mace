@@ -295,6 +295,7 @@ def evaluate(
     batch = None  # for pylint
     C_computed = False
     delta_cs_list = []
+    cs_list = []
 
     start_time = time.time()
     for batch in data_loader:
@@ -348,6 +349,7 @@ def evaluate(
         if output.get("charges") is not None and batch.charges is not None:
             C_computed = True
             delta_cs_list.append(batch.charges - output["charges"])
+            cs_list.append(batch.charges)
 
     avg_loss = total_loss / len(data_loader)
 
@@ -398,8 +400,11 @@ def evaluate(
         aux["q95_mu"] = compute_q95(delta_mus)
     if C_computed:
         delta_cs = to_numpy(torch.cat(delta_cs_list, dim=0))
+        cs = to_numpy(torch.cat(cs_list, dim=0))
         aux["mae_c"] = compute_mae(delta_cs)
+        aux["rel_mae_c"] = compute_rel_mae(delta_cs, cs)
         aux["rmse_c"] = compute_rmse(delta_cs)
+        aux["rel_rmse_c"] = compute_rel_rmse(delta_cs, cs)
         aux["q95_c"] = compute_q95(delta_cs)
 
     aux["time"] = time.time() - start_time

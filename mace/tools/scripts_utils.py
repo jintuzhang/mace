@@ -198,11 +198,17 @@ def create_error_table(
             "RMSE MU / mDebye / atom",
             "rel MU RMSE %",
         ]
+    elif table_type == "ChargesMAE":
+        table.field_names = [
+            "config_type",
+            "MAE C / mC",
+            "relative C MAE %",
+        ]
     elif table_type == "ChargesRMSE":
         table.field_names = [
             "config_type",
-            "MAE C / C",
-            "relative C MAE %",
+            "RMSE C / mC",
+            "relative C RMSE %",
         ]
     for name, subset in all_collections:
         data_loader = torch_geometric.dataloader.DataLoader(
@@ -319,6 +325,22 @@ def create_error_table(
                     f"{metrics['rel_rmse_f']:.1f}",
                     f"{metrics['rmse_mu_per_atom'] * 1000:.1f}",
                     f"{metrics['rel_rmse_mu']:.1f}",
+                ]
+            )
+        elif table_type == "ChargesMAE":
+            table.add_row(
+                [
+                    name,
+                    f"{metrics['mae_c'] * 1000:.2f}",
+                    f"{metrics['rel_mae_c']:.1f}",
+                ]
+            )
+        elif table_type == "ChargesRMSE":
+            table.add_row(
+                [
+                    name,
+                    f"{metrics['rmse_c'] * 1000:.2f}",
+                    f"{metrics['rel_rmse_c']:.1f}",
                 ]
             )
     return table
