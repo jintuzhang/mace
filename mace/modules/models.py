@@ -1214,16 +1214,9 @@ class AtomicChargesMACE(torch.nn.Module):
             charges, dim=-1
         )  # [n_nodes,1,n_contributions]
         atomic_charges = torch.sum(contributions_charges, dim=-1)  # [n_nodes,1]
-        total_charge = scatter_sum(
-            src=atomic_charges,
-            index=data["batch"],
-            dim=0,
-            dim_size=num_graphs,
-        )  # [n_graphs,1]
 
         output = {
             "charges": atomic_charges,
-            "total_charge": total_charge,
             "charges_gradients": None
         }
         return output

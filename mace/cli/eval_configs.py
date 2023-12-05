@@ -94,7 +94,6 @@ def main():
     stresses_list = []
     forces_collection = []
     charges_collection = []
-    total_charge_list = []
 
     if (model._get_name() == 'AtomicChargesMACE'):
         assert args.compute_stress is False, 'Can not compute stress with a charge model'
@@ -128,7 +127,6 @@ def main():
                 axis=0,
             )
             charges_collection.append(charges[:-1])  # drop last as its empty
-            total_charge_list.append(torch_tools.to_numpy(output["total_charge"]))
 
     if compute_energy:
         energies = np.concatenate(energies_list, axis=0)
@@ -144,7 +142,6 @@ def main():
             contributions = np.concatenate(contributions_list, axis=0)
             assert len(atoms_list) == contributions.shape[0]
     if compute_charges:
-        total_charge = np.concatenate(total_charge_list, axis=0)
         charges_list = [
             charges for charges_list in charges_collection for charges in charges_list
         ]
@@ -162,9 +159,8 @@ def main():
             if args.return_contributions:
                 atoms.info[args.info_prefix + "BO_contributions"] = contributions[i]
     if compute_charges:
-        for i, (atoms, total_charge, charges) in enumerate(zip(atoms_list, total_charge, charges_list)):
+        for i, (atoms, charges) in enumerate(zip(atoms_list, charges_list)):
             atoms.calc = None  # crucial
-            atoms.info[args.info_prefix + "total_charge"] = total_charge
             atoms.arrays[args.info_prefix + "charges"] = charges
 
     # Write atoms to output path
