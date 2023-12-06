@@ -104,10 +104,17 @@ def main() -> None:
     else:
         dipole_only = False
         charges_only = False
-        compute_charges = False
         if args.model == "EnergyDipolesMACE":
             compute_dipole = True
             compute_energy = True
+            compute_charges = False
+            args.compute_forces = True
+            compute_virials = False
+            args.compute_stress = False
+        if args.model == "EnergyChargesMACE":
+            compute_dipole = False
+            compute_energy = True
+            compute_charges = True
             args.compute_forces = True
             compute_virials = False
             args.compute_stress = False
@@ -207,6 +214,13 @@ def main() -> None:
             charges_only is True
         ), "charges loss can only be used with AtomicChargesMACE model"
         loss_fn = modules.ChargesSingleLoss(
+            charges_weight=args.charges_weight,
+        )
+    elif args.loss == "energy_forces_charges":
+        assert charges_only is False and compute_charges is True
+        loss_fn = modules.WeightedEnergyForcesChargesLoss(
+            energy_weight=args.energy_weight,
+            forces_weight=args.forces_weight,
             charges_weight=args.charges_weight,
         )
     else:
@@ -353,12 +367,27 @@ def main() -> None:
             MLP_irreps=o3.Irreps(args.MLP_irreps),
         )
     elif args.model == "AtomicChargesMACE":
-        # std_df = modules.scaling_classes["rms_dipoles_scaling"](train_loader)
         assert args.loss == "charges", "Use charges loss with AtomicChargesMACE model"
         assert (
             args.error_table == "ChargesRMSE"
         ), "Use error_table ChargesRMSE with AtomicChargesMACE model"
         model = modules.AtomicChargesMACE(
+            **model_config,
+            correlation=args.correlation,
+            gate=modules.gate_dict[args.gate],
+            interaction_cls_first=modules.interaction_classes[
+                "RealAgnosticInteractionBlock"
+            ],
+            MLP_irreps=o3.Irreps(args.MLP_irreps),
+        )
+    elif args.model == "EnergyChargesMACE":
+        assert (
+            args.loss == "energy_forces_charges"
+        ), "Use energy_forces_charges loss with EnergyChargesMACE model"
+        assert (
+            args.error_table == "EnergyChargesRMSE"
+        ), "Use error_table EnergyChargesRMSE with EnergyChargesMACE model"
+        model = modules.EnergyChargesMACE(
             **model_config,
             correlation=args.correlation,
             gate=modules.gate_dict[args.gate],

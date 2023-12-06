@@ -66,7 +66,8 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "DipoleRMSE",
             "DipoleMAE",
             "EnergyDipoleRMSE",
-            "ChargesRMSE"
+            "ChargesRMSE",
+            "EnergyChargesRMSE",
         ],
         default="PerAtomRMSE",
     )
@@ -84,6 +85,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "AtomicDipolesMACE",
             "EnergyDipolesMACE",
             "AtomicChargesMACE",
+            "EnergyChargesMACE",
         ],
     )
     parser.add_argument(
@@ -293,6 +295,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
             "huber",
             "energy_forces_dipole",
             "charges",
+            "energy_forces_charges",
         ],
     )
     parser.add_argument(

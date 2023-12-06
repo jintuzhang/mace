@@ -29,6 +29,7 @@ from .loss import (
     WeightedForcesLoss,
     WeightedHuberEnergyForcesStressLoss,
     ChargesSingleLoss,
+    WeightedEnergyForcesChargesLoss,
 )
 from .models import (
     MACE,
@@ -38,6 +39,7 @@ from .models import (
     ScaleShiftBOTNet,
     ScaleShiftMACE,
     AtomicChargesMACE,
+    EnergyChargesMACE,
 )
 from .radial import BesselBasis, GaussianBasis, PolynomialCutoff
 from .symmetric_contraction import SymmetricContraction
