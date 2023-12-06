@@ -89,6 +89,8 @@ def main() -> None:
         args.compute_forces = False
         compute_virials = False
         args.compute_stress = False
+        charges_only = False
+        compute_charges = False
     if args.model == "AtomicChargesMACE":
         atomic_energies = None
         dipole_only = False
@@ -101,6 +103,8 @@ def main() -> None:
         args.compute_stress = False
     else:
         dipole_only = False
+        charges_only = False
+        compute_charges = False
         if args.model == "EnergyDipolesMACE":
             compute_dipole = True
             compute_energy = True
