@@ -95,7 +95,7 @@ def main():
     forces_collection = []
     charges_collection = []
 
-    if (model._get_name() == 'AtomicChargesMACE'):
+    if (model._get_name() in ['AtomicChargesMACE', 'EnergyChargesMACE']):
         assert args.compute_stress is False, 'Can not compute stress with a charge model'
         compute_charges = True
         compute_energy = False

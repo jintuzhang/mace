@@ -289,7 +289,7 @@ class ChargesSingleLoss(torch.nn.Module):
 
     def forward(self, ref: Batch, pred: TensorDict) -> torch.Tensor:
         return (
-            self.charges_weight * weighted_mean_squared_error_charges(ref, pred) * 100
+            self.charges_weight * weighted_mean_squared_error_charges(ref, pred)
         )
 
     def __repr__(self):
@@ -316,7 +316,7 @@ class WeightedEnergyForcesChargesLoss(torch.nn.Module):
         return (
             self.energy_weight * weighted_mean_squared_error_energy(ref, pred)
             + self.forces_weight * mean_squared_error_forces(ref, pred)
-            + self.charges_weight * weighted_mean_squared_error_charges(ref, pred) * 100
+            + self.charges_weight * weighted_mean_squared_error_charges(ref, pred)
         )
 
     def __repr__(self):
