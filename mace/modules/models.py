@@ -1174,6 +1174,7 @@ class AtomicChargesMACE(torch.nn.Module):
         # Setup
         data["node_attrs"].requires_grad_(True)
         data["positions"].requires_grad_(True)
+        data["charges"].requires_grad_(True)
         num_graphs = data["ptr"].numel() - 1
 
         # Embeddings
@@ -1188,6 +1189,7 @@ class AtomicChargesMACE(torch.nn.Module):
 
         # Interactions
         charges = []
+        total_charge_list = []
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
@@ -1208,16 +1210,23 @@ class AtomicChargesMACE(torch.nn.Module):
                 dim=-1,
             )  # [n_nodes,1]
             charges.append(node_charges)
+            total_charge = scatter_sum(
+                src=node_charges, index=data["batch"], dim=-1, dim_size=num_graphs
+            )  # [n_graphs,]
+            total_charge_list.append(total_charge)
 
         # Compute the charges
         contributions_charges = torch.stack(
             charges, dim=-1
         )  # [n_nodes,1,n_contributions]
         atomic_charges = torch.sum(contributions_charges, dim=-1)  # [n_nodes,1]
+        contributions_total_charge = torch.stack(total_charge_list, dim=-1)
+        total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
 
         output = {
             "charges": atomic_charges,
-            "charges_gradients": None
+            "total_charge": total_charge,
+            "charges_gradients": None,
         }
         return output
 
@@ -1357,6 +1366,7 @@ class EnergyChargesMACE(torch.nn.Module):
         # Setup
         data["node_attrs"].requires_grad_(True)
         data["positions"].requires_grad_(True)
+        data["charges"].requires_grad_(True)
         num_graphs = data["ptr"].numel() - 1
         displacement = torch.zeros(
             (num_graphs, 3, 3),
@@ -1397,6 +1407,7 @@ class EnergyChargesMACE(torch.nn.Module):
         energies = [e0]
         node_energies_list = [node_e0]
         charges = []
+        total_charge_list = []
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
@@ -1421,6 +1432,10 @@ class EnergyChargesMACE(torch.nn.Module):
             energies.append(energy)
             node_charges = torch.sum(node_out[:, 1:], dim=-1)
             charges.append(node_charges)
+            total_charge = scatter_sum(
+                src=node_charges, index=data["batch"], dim=-1, dim_size=num_graphs
+            )  # [n_graphs,]
+            total_charge_list.append(total_charge)
 
         # Compute the energies and charges
         contributions = torch.stack(energies, dim=-1)
@@ -1431,6 +1446,8 @@ class EnergyChargesMACE(torch.nn.Module):
             charges, dim=-1
         )  # [n_nodes,1,n_contributions]
         atomic_charges = torch.sum(contributions_charges, dim=-1)  # [n_nodes,1]
+        contributions_total_charge = torch.stack(total_charge_list, dim=-1)
+        total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
 
         forces, virials, stress = get_outputs(
             energy=total_energy,
@@ -1452,6 +1469,7 @@ class EnergyChargesMACE(torch.nn.Module):
             "stress": stress,
             "displacement": displacement,
             "charges": atomic_charges,
-            "charges_gradients": None
+            "total_charge": total_charge,
+            "charges_gradients": None,
         }
         return output
