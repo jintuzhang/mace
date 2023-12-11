@@ -485,6 +485,15 @@ def main() -> None:
             logging.info(
                 f"Using stochastic weight averaging (after {args.start_swa} epochs) with energy weight : {args.swa_energy_weight}, forces weight : {args.swa_forces_weight}, dipole weight : {args.swa_dipole_weight} and learning rate : {args.swa_lr}"
             )
+        elif args.loss == "energy_forces_charges":
+            loss_fn_energy = modules.WeightedEnergyForcesChargesLoss(
+                args.swa_energy_weight,
+                forces_weight=args.swa_forces_weight,
+                charges_weight=args.swa_charges_weight,
+            )
+            logging.info(
+                f"Using stochastic weight averaging (after {args.start_swa} epochs) with energy weight : {args.swa_energy_weight}, forces weight : {args.swa_forces_weight}, charges weight : {args.swa_charges_weight} and learning rate : {args.swa_lr}"
+            )
         else:
             loss_fn_energy = modules.WeightedEnergyForcesLoss(
                 energy_weight=args.swa_energy_weight,
