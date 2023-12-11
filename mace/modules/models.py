@@ -23,6 +23,8 @@ from .blocks import (
     LinearReadoutBlock,
     NonLinearDipoleReadoutBlock,
     NonLinearReadoutBlock,
+    LinearChargeReadoutBlock,
+    NonLinearChargeReadoutBlock,
     RadialEmbeddingBlock,
     ScaleShiftBlock,
 )
@@ -1046,7 +1048,7 @@ class AtomicChargesMACE(torch.nn.Module):
         MLP_irreps: o3.Irreps,
         avg_num_neighbors: float,
         atomic_numbers: List[int],
-        correlation: int,
+        correlation: Union[int, List[int]],
         gate: Optional[Callable],
         atomic_energies: Optional[
             None
@@ -1058,12 +1060,15 @@ class AtomicChargesMACE(torch.nn.Module):
         self.register_buffer(
             "atomic_numbers", torch.tensor(atomic_numbers, dtype=torch.int64)
         )
-        self.register_buffer("r_max", torch.tensor(r_max, dtype=torch.float64))
+        self.register_buffer(
+            "r_max", torch.tensor(r_max, dtype=torch.get_default_dtype())
+        )
         self.register_buffer(
             "num_interactions", torch.tensor(num_interactions, dtype=torch.int64)
         )
         assert atomic_energies is None
-
+        if isinstance(correlation, int):
+            correlation = [correlation] * num_interactions
         # Embedding
         node_attr_irreps = o3.Irreps([(num_elements, (0, 1))])
         node_feats_irreps = o3.Irreps([(hidden_irreps.count(o3.Irrep(0, 1)), (0, 1))])
@@ -1087,7 +1092,6 @@ class AtomicChargesMACE(torch.nn.Module):
         if radial_MLP is None:
             radial_MLP = [64, 64, 64]
 
-        # Interactions and readouts
         inter = interaction_cls_first(
             node_attrs_irreps=node_attr_irreps,
             node_feats_irreps=node_feats_irreps,
@@ -1100,7 +1104,7 @@ class AtomicChargesMACE(torch.nn.Module):
         )
         self.interactions = torch.nn.ModuleList([inter])
 
-        # Use the appropriate self connection at the first layer
+        # Use the appropriate self connection at the first layer for proper E0
         use_sc_first = False
         if "Residual" in str(interaction_cls_first):
             use_sc_first = True
@@ -1109,23 +1113,20 @@ class AtomicChargesMACE(torch.nn.Module):
         prod = EquivariantProductBasisBlock(
             node_feats_irreps=node_feats_irreps_out,
             target_irreps=hidden_irreps,
-            correlation=correlation,
+            correlation=correlation[0],
             num_elements=num_elements,
             use_sc=use_sc_first,
         )
         self.products = torch.nn.ModuleList([prod])
 
         self.readouts = torch.nn.ModuleList()
-        self.readouts.append(LinearDipoleReadoutBlock(hidden_irreps, dipole_only=True))
+        self.readouts.append(LinearReadoutBlock(hidden_irreps))
 
         for i in range(num_interactions - 1):
             if i == num_interactions - 2:
-                assert (
-                    len(hidden_irreps) > 1
-                ), "To predict charges use at least l=1 hidden_irreps"
                 hidden_irreps_out = str(
-                    hidden_irreps[1]
-                )  # Select only l=1 vectors for last layer
+                    hidden_irreps[0]
+                )  # Select only scalars for last layer
             else:
                 hidden_irreps_out = hidden_irreps
             inter = interaction_cls(
@@ -1142,21 +1143,17 @@ class AtomicChargesMACE(torch.nn.Module):
             prod = EquivariantProductBasisBlock(
                 node_feats_irreps=interaction_irreps,
                 target_irreps=hidden_irreps_out,
-                correlation=correlation,
+                correlation=correlation[i + 1],
                 num_elements=num_elements,
                 use_sc=True,
             )
             self.products.append(prod)
             if i == num_interactions - 2:
                 self.readouts.append(
-                    NonLinearDipoleReadoutBlock(
-                        hidden_irreps_out, MLP_irreps, gate, dipole_only=True
-                    )
+                    NonLinearReadoutBlock(hidden_irreps_out, MLP_irreps, gate)
                 )
             else:
-                self.readouts.append(
-                    LinearDipoleReadoutBlock(hidden_irreps, dipole_only=True)
-                )
+                self.readouts.append(LinearReadoutBlock(hidden_irreps))
 
     def forward(
         self,
@@ -1205,17 +1202,14 @@ class AtomicChargesMACE(torch.nn.Module):
                 sc=sc,
                 node_attrs=data["node_attrs"],
             )
-            node_charges = torch.sum(
-                readout(node_feats).squeeze(-1),  # [n_nodes,3]
-                dim=-1,
-            )  # [n_nodes,1]
+            node_charges = readout(node_feats).squeeze(-1)  # [n_nodes, ]
             charges.append(node_charges)
             total_charge = scatter_sum(
                 src=node_charges, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
             total_charge_list.append(total_charge)
 
-        # Compute the charges
+        # Sum over charge contributions
         contributions_charges = torch.stack(
             charges, dim=-1
         )  # [n_nodes,1,n_contributions]
@@ -1229,7 +1223,6 @@ class AtomicChargesMACE(torch.nn.Module):
             "charges_gradients": None,
         }
         return output
-
 
 @compile_mode("script")
 class EnergyChargesMACE(torch.nn.Module):
@@ -1312,7 +1305,7 @@ class EnergyChargesMACE(torch.nn.Module):
         self.products = torch.nn.ModuleList([prod])
 
         self.readouts = torch.nn.ModuleList()
-        self.readouts.append(LinearDipoleReadoutBlock(hidden_irreps, dipole_only=False))
+        self.readouts.append(LinearChargeReadoutBlock(hidden_irreps))
 
         for i in range(num_interactions - 1):
             if i == num_interactions - 2:
@@ -1345,13 +1338,13 @@ class EnergyChargesMACE(torch.nn.Module):
             self.products.append(prod)
             if i == num_interactions - 2:
                 self.readouts.append(
-                    NonLinearDipoleReadoutBlock(
-                        hidden_irreps_out, MLP_irreps, gate, dipole_only=False
+                    NonLinearChargeReadoutBlock(
+                        hidden_irreps_out, MLP_irreps, gate
                     )
                 )
             else:
                 self.readouts.append(
-                    LinearDipoleReadoutBlock(hidden_irreps, dipole_only=False)
+                    LinearChargeReadoutBlock(hidden_irreps)
                 )
 
     def forward(
@@ -1430,7 +1423,7 @@ class EnergyChargesMACE(torch.nn.Module):
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
             energies.append(energy)
-            node_charges = torch.sum(node_out[:, 1:], dim=-1)
+            node_charges = node_out[:, 1]
             charges.append(node_charges)
             total_charge = scatter_sum(
                 src=node_charges, index=data["batch"], dim=-1, dim_size=num_graphs
