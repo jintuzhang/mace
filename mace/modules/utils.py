@@ -279,18 +279,18 @@ def compute_fixed_charge_dipole(
     )  # [N_graphs,3]
 
 
-def compute_charges_gradients(
-    charges: torch.Tensor, positions: torch.Tensor, training: bool = True
-) -> torch.Tensor:
-    grad_outputs: List[Optional[torch.Tensor]] = [torch.ones_like(charges)]
+def compute_charge_cv_gradients(charge_cvs: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
+    grad_outputs: List[Optional[torch.Tensor]] = [torch.ones_like(charge_cvs)]
     gradient = torch.autograd.grad(
-        outputs=[charges],  # [n_graphs, ]
+        outputs=[charge_cvs],  # [n_graphs, ]
         inputs=[positions],  # [n_nodes, 3]
         grad_outputs=grad_outputs,
-        retain_graph=training,  # Make sure the graph is not destroyed during training
-        create_graph=training,  # Create graph for second derivative
+        retain_graph=True,
+        create_graph=False,
         allow_unused=True,  # For complete dissociation turn to true
-    )
+    )[
+        0
+    ]  # [n_nodes, 3]
     if gradient is None:
-        return torch.zeros(len(charges), *positions.shape)
+        return torch.zeros_like(positions)
     return gradient

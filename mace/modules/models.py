@@ -31,7 +31,7 @@ from .blocks import (
 from .utils import (
     compute_fixed_charge_dipole,
     compute_forces,
-    compute_charges_gradients,
+    compute_charge_cv_gradients,
     get_edge_vectors_and_lengths,
     get_outputs,
     get_symmetric_displacement,
@@ -1163,6 +1163,7 @@ class AtomicChargesMACE(torch.nn.Module):
         compute_virials: bool = False,
         compute_stress: bool = False,
         compute_displacement: bool = False,
+        charge_cv_expr: Optional[Callable] = None,
     ) -> Dict[str, Optional[torch.Tensor]]:
         assert compute_force is False
         assert compute_virials is False
@@ -1187,6 +1188,7 @@ class AtomicChargesMACE(torch.nn.Module):
         # Interactions
         charges = []
         total_charge_list = []
+        charge_cv_list = []
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
@@ -1216,13 +1218,27 @@ class AtomicChargesMACE(torch.nn.Module):
         atomic_charges = torch.sum(contributions_charges, dim=-1)  # [n_nodes,1]
         contributions_total_charge = torch.stack(total_charge_list, dim=-1)
         total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
+        if (not training and (charge_cv_expr is not None)):
+            for i in range(0, len(data["ptr"]) - 1):
+                charge_cv = charge_cv_expr(atomic_charges[data["ptr"][i]:data["ptr"][i+1]])
+                charge_cv_list.append(charge_cv)
+            charge_cvs = torch.stack(charge_cv_list, dim=-1)  # [n_graphs, ]
+            assert charge_cvs.shape == (num_graphs,), 'The dimension of the charge CV should be 1.'
+            charge_cv_gradients = compute_charge_cv_gradients(
+                charge_cvs=charge_cvs, positions=data["positions"]
+            )
+        else:
+            charge_cv_gradients = None
+            charge_cvs = None
 
         output = {
             "charges": atomic_charges,
             "total_charge": total_charge,
-            "charges_gradients": None,
+            "charge_cv": charge_cvs,
+            "charge_cv_gradients": charge_cv_gradients,
         }
         return output
+
 
 @compile_mode("script")
 class EnergyChargesMACE(torch.nn.Module):
@@ -1355,6 +1371,7 @@ class EnergyChargesMACE(torch.nn.Module):
         compute_virials: bool = False,
         compute_stress: bool = False,
         compute_displacement: bool = False,
+        charge_cv_expr: Optional[Callable] = None,
     ) -> Dict[str, Optional[torch.Tensor]]:
         # Setup
         data["node_attrs"].requires_grad_(True)
@@ -1401,6 +1418,7 @@ class EnergyChargesMACE(torch.nn.Module):
         node_energies_list = [node_e0]
         charges = []
         total_charge_list = []
+        charge_cv_list = []
         for interaction, product, readout in zip(
             self.interactions, self.products, self.readouts
         ):
@@ -1441,6 +1459,18 @@ class EnergyChargesMACE(torch.nn.Module):
         atomic_charges = torch.sum(contributions_charges, dim=-1)  # [n_nodes,1]
         contributions_total_charge = torch.stack(total_charge_list, dim=-1)
         total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
+        if (not training and (charge_cv_expr is not None)):
+            for i in range(0, len(data["ptr"]) - 1):
+                charge_cv = charge_cv_expr(atomic_charges[data["ptr"][i]:data["ptr"][i+1]])
+                charge_cv_list.append(charge_cv)
+            charge_cvs = torch.stack(charge_cv_list, dim=-1)  # [n_graphs, ]
+            assert charge_cvs.shape == (num_graphs,), 'The dimension of the charge CV should be 1.'
+            charge_cv_gradients = compute_charge_cv_gradients(
+                charge_cvs=charge_cvs, positions=data["positions"]
+            )
+        else:
+            charge_cv_gradients = None
+            charge_cvs = None
 
         forces, virials, stress = get_outputs(
             energy=total_energy,
@@ -1463,6 +1493,7 @@ class EnergyChargesMACE(torch.nn.Module):
             "displacement": displacement,
             "charges": atomic_charges,
             "total_charge": total_charge,
-            "charges_gradients": None,
+            "charge_cv": charge_cvs,
+            "charge_cv_gradients": charge_cv_gradients,
         }
         return output
