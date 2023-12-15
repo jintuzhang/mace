@@ -37,8 +37,8 @@ def mace_mp(
 
     Args:
         model (str, optional): Path to the model. Defaults to None which first checks for
-            a local model and then downloads the default model from figshare. Specify "medium"
-            or "large" to download a smaller or larger model from figshare.
+            a local model and then downloads the default model from figshare. Specify "small",
+            "medium" or "large" to download a smaller or larger model from figshare.
         device (str, optional): Device to use for the model. Defaults to "cuda".
         default_dtype (str, optional): Default dtype for the model. Defaults to "float32".
         dispersion (bool, optional): Whether to use D3 dispersion corrections. Defaults to False.
@@ -52,18 +52,18 @@ def mace_mp(
     if model in (None, "medium") and os.path.isfile(local_model_path):
         model = local_model_path
         print(
-            f"Using local medium Materials Project MACE model for MACECalculator {model=}"
+            f"Using local medium Materials Project MACE model for MACECalculator {model}"
         )
-    elif model in (None, "medium", "large") or str(model).startswith("https:"):
+    elif model in (None, "small", "medium", "large") or str(model).startswith("https:"):
         try:
             urls = dict(
-                medium="https://tinyurl.com/y7uhwpje",
+                small="https://tinyurl.com/2jmmb8b7",  # 2023-12-10-mace-128-L0_energy_epoch-249.model
+                medium="https://tinyurl.com/y7uhwpje",  # 2023-12-03-mace-128-L1_epoch-199.model
                 large="https://figshare.com/ndownloader/files/43117273",
             )
-            # default URL points to 2023-12-03-mace-128-L1_epoch-199.model
             checkpoint_url = (
                 urls.get(model, urls["medium"])
-                if model in (None, "medium", "large")
+                if model in (None, "small", "medium", "large")
                 else model
             )
             cache_dir = os.path.expanduser("~/.cache/mace")
@@ -78,7 +78,7 @@ def mace_mp(
                 urllib.request.urlretrieve(checkpoint_url, cached_model_path)
                 print(f"Cached MACE model to {cached_model_path}")
             model = cached_model_path
-            msg = f"Using Materials Project MACE for MACECalculator with {model=}"
+            msg = f"Using Materials Project MACE for MACECalculator with {model}"
             print(msg)
         except Exception as exc:
             raise RuntimeError(
@@ -86,6 +86,14 @@ def mace_mp(
             ) from exc
 
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    if default_dtype == "float64":
+        print(
+            "Using float64 for MACECalculator, which is slower but more accurate. Recommended for geometry optimization."
+        )
+    if default_dtype == "float32":
+        print(
+            "Using float32 for MACECalculator, which is faster but less accurate. Recommended for MD. Use float64 for geometry optimization."
+        )
     mace_calc = MACECalculator(
         model_paths=model, device=device, default_dtype=default_dtype, **kwargs
     )
