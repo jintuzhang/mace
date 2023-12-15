@@ -342,6 +342,7 @@ class MACECalculator(Calculator):
                 )
                 self.results["charge_cv_gradients"] = (
                     torch.mean(ret_tensors["charge_cv_gradients"], dim=0).cpu().numpy()
+                    / self.length_units_to_A
                 )
             if self.num_models > 1:
                 self.results["charges_var"] = (
