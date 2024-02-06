@@ -1227,6 +1227,9 @@ class AtomicChargesMACE(torch.nn.Module):
             charge_cv_gradients = compute_charge_cv_gradients(
                 charge_cvs=charge_cvs, positions=data["positions"]
             )
+            total_charge_gradients = compute_charge_cv_gradients(
+                charge_cvs=total_charge, positions=data["positions"]
+            )
         else:
             charge_cv_gradients = None
             charge_cvs = None
@@ -1234,8 +1237,9 @@ class AtomicChargesMACE(torch.nn.Module):
         output = {
             "charges": atomic_charges,
             "total_charge": total_charge,
+            "total_charge_gradients": total_charge_gradients,
             "charge_cv": charge_cvs,
-            "charge_cv_gradients": charge_cv_gradients,
+            "charge_cv_gradients": charge_cv_gradients
         }
         return output
 
@@ -1468,6 +1472,9 @@ class EnergyChargesMACE(torch.nn.Module):
             charge_cv_gradients = compute_charge_cv_gradients(
                 charge_cvs=charge_cvs, positions=data["positions"]
             )
+            total_charge_gradients = compute_charge_cv_gradients(
+                charge_cvs=total_charge, positions=data["positions"]
+            )
         else:
             charge_cv_gradients = None
             charge_cvs = None
@@ -1494,6 +1501,7 @@ class EnergyChargesMACE(torch.nn.Module):
             "charges": atomic_charges,
             "total_charge": total_charge,
             "charge_cv": charge_cvs,
-            "charge_cv_gradients": charge_cv_gradients,
+            "total_charge_gradients": total_charge_gradients,
+            "charge_cv_gradients": charge_cv_gradients
         }
         return output
