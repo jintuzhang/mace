@@ -31,7 +31,6 @@ from .blocks import (
 from .utils import (
     compute_fixed_charge_dipole,
     compute_forces,
-    compute_gradients,
     get_edge_vectors_and_lengths,
     get_outputs,
     get_symmetric_displacement,
