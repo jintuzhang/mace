@@ -1170,7 +1170,8 @@ class AtomicChargesMACE(torch.nn.Module):
         # Setup
         data["node_attrs"].requires_grad_(True)
         data["positions"].requires_grad_(True)
-        data["charges"].requires_grad_(True)
+        if (training):
+            data["charges"].requires_grad_(True)
         num_graphs = data["ptr"].numel() - 1
 
         # Embeddings
@@ -1358,7 +1359,8 @@ class EnergyChargesMACE(torch.nn.Module):
         # Setup
         data["node_attrs"].requires_grad_(True)
         data["positions"].requires_grad_(True)
-        data["charges"].requires_grad_(True)
+        if (training):
+            data["charges"].requires_grad_(True)
         num_graphs = data["ptr"].numel() - 1
         displacement = torch.zeros(
             (num_graphs, 3, 3),
