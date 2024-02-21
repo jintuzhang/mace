@@ -31,7 +31,7 @@ from .blocks import (
 from .utils import (
     compute_fixed_charge_dipole,
     compute_forces,
-    compute_charge_cv_gradients,
+    compute_gradients,
     get_edge_vectors_and_lengths,
     get_outputs,
     get_symmetric_displacement,
@@ -1164,6 +1164,7 @@ class AtomicChargesMACE(torch.nn.Module):
         compute_stress: bool = False,
         compute_displacement: bool = False,
         charge_cv_expr: Optional[Callable] = None,
+        compute_charge_cv_gradients: Optional[bool] = True,
         compute_total_charge_gradients: Optional[bool] = False
     ) -> Dict[str, Optional[torch.Tensor]]:
         assert compute_force is False
@@ -1220,8 +1221,8 @@ class AtomicChargesMACE(torch.nn.Module):
         contributions_total_charge = torch.stack(total_charge_list, dim=-1)
         total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
         if (not training and compute_total_charge_gradients):
-            total_charge_gradients = compute_charge_cv_gradients(
-                charge_cvs=total_charge, positions=data["positions"]
+            total_charge_gradients = compute_gradients(
+                inputs=total_charge, positions=data["positions"]
             )
         else:
             total_charge_gradients = None
@@ -1231,9 +1232,12 @@ class AtomicChargesMACE(torch.nn.Module):
                 charge_cv_list.append(charge_cv)
             charge_cvs = torch.stack(charge_cv_list, dim=-1)  # [n_graphs, ]
             assert charge_cvs.shape == (num_graphs,), 'The dimension of the charge CV should be 1.'
-            charge_cv_gradients = compute_charge_cv_gradients(
-                charge_cvs=charge_cvs, positions=data["positions"]
-            )
+            if (compute_charge_cv_gradients):
+                charge_cv_gradients = compute_gradients(
+                    inputs=charge_cvs, positions=data["positions"]
+                )
+            else:
+                charge_cv_gradients = None
         else:
             charge_cv_gradients = None
             charge_cvs = None
@@ -1380,6 +1384,7 @@ class EnergyChargesMACE(torch.nn.Module):
         compute_stress: bool = False,
         compute_displacement: bool = False,
         charge_cv_expr: Optional[Callable] = None,
+        compute_charge_cv_gradients: Optional[bool] = True,
         compute_total_charge_gradients: Optional[bool] = False
     ) -> Dict[str, Optional[torch.Tensor]]:
         # Setup
@@ -1469,8 +1474,8 @@ class EnergyChargesMACE(torch.nn.Module):
         contributions_total_charge = torch.stack(total_charge_list, dim=-1)
         total_charge = torch.sum(contributions_total_charge, dim=-1)  # [n_graphs, ]
         if (not training and compute_total_charge_gradients):
-            total_charge_gradients = compute_charge_cv_gradients(
-                charge_cvs=total_charge, positions=data["positions"]
+            total_charge_gradients = compute_gradients(
+                inputs=total_charge, positions=data["positions"]
             )
         else:
             total_charge_gradients = None
@@ -1480,9 +1485,12 @@ class EnergyChargesMACE(torch.nn.Module):
                 charge_cv_list.append(charge_cv)
             charge_cvs = torch.stack(charge_cv_list, dim=-1)  # [n_graphs, ]
             assert charge_cvs.shape == (num_graphs,), 'The dimension of the charge CV should be 1.'
-            charge_cv_gradients = compute_charge_cv_gradients(
-                charge_cvs=charge_cvs, positions=data["positions"]
-            )
+            if (compute_charge_cv_gradients):
+                charge_cv_gradients = compute_gradients(
+                    inputs=charge_cvs, positions=data["positions"]
+                )
+            else:
+                charge_cv_gradients = None
         else:
             charge_cv_gradients = None
             charge_cvs = None
