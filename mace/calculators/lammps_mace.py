@@ -156,7 +156,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
         grad_outputs: List[Optional[torch.Tensor]] = [torch.ones(1)]
         if (compute_total_charge_gradients):
             total_charge_gradients = torch.autograd.grad(
-                outputs=[total_charge],
+                outputs=[total_charge[0]],
                 inputs=[positions],
                 grad_outputs=grad_outputs,
                 retain_graph=True,
@@ -219,7 +219,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
             "node_energy": node_energy,
             "forces": forces,
             "virials": virials,
-            "total_charge": total_charge,
+            "total_charge": total_charge[0],
             "total_charge_gradients": total_charge_gradients,
             "charge_cv": charge_cv,
             "charge_cv_gradients": charge_cv_gradients,
