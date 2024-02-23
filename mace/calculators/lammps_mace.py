@@ -142,10 +142,12 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
                 "forces": None,
                 "virials": None,
             }
+        energy = out["energy"]
         positions = data["positions"]
         displacement = out["displacement"]
         forces: Optional[torch.Tensor] = torch.zeros_like(positions)
         virials: Optional[torch.Tensor] = torch.zeros_like(data["cell"])
+        assert energy is not None
         # Get the charge CV and total charge
         charges = out["charges"]
         total_charge = out['total_charge']
@@ -175,18 +177,10 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
             )[0]
         else:
             charge_cv = torch.tensor([0.], dtype=torch.float64)
-        # accumulate energies of local atoms
-        node_energy_local = node_energy * local_or_ghost
-        total_energy_local = scatter_sum(
-            src=node_energy_local, index=data["batch"], dim=-1, dim_size=num_graphs
-        )
         # compute partial forces and (possibly) partial virials
-        grad_outputs: List[Optional[torch.Tensor]] = [
-            torch.ones_like(total_energy_local)
-        ]
         if compute_virials and displacement is not None:
             forces, virials = torch.autograd.grad(
-                outputs=[total_energy_local],
+                outputs=[energy[0]],
                 inputs=[positions, displacement],
                 grad_outputs=grad_outputs,
                 retain_graph=False,
@@ -203,7 +197,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
                 virials = torch.zeros_like(displacement)
         else:
             forces = torch.autograd.grad(
-                outputs=[total_energy_local],
+                outputs=[energy[0]],
                 inputs=[positions],
                 grad_outputs=grad_outputs,
                 retain_graph=False,
@@ -215,7 +209,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
             else:
                 forces = torch.zeros_like(positions)
         return {
-            "total_energy_local": total_energy_local,
+            "total_energy_local": energy[0],
             "node_energy": node_energy,
             "forces": forces,
             "virials": virials,
