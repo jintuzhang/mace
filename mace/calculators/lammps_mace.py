@@ -166,7 +166,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
                 allow_unused=True,
             )[0]
         if (self.has_charge_cv_expr):
-            charge_cv = self.charge_cv_expr(charges[data["ilist"]])
+            charge_cv = self.charge_cv_expr(charges[data["tag_r"]])
             charge_cv_gradients = torch.autograd.grad(
                 outputs=[charge_cv],
                 inputs=[positions],
