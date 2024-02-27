@@ -19,14 +19,14 @@ def main():
         if (model_name not in ['EnergyChargesMACE', 'AtomicsChargesMACE']):
             lammps_model = LAMMPS_MACE(model)
             lammps_model_compiled = jit.compile(lammps_model)
-            lammps_model_compiled.save(model_path + "-lammps.pt")
+            lammps_model_compiled.save(os.path.basename(model_path) + "-lammps.pt")
         else:
             message = 'Charge CV expression was not given! Will not ' + \
                       'calculate charge CV with in the model!'
             warnings.warn(message)
             lammps_model = LAMMPS_MACE_CHARGE(model)
             lammps_model_compiled = jit.compile(lammps_model)
-            lammps_model_compiled.save(model_path + "-lammps_charge.pt")
+            lammps_model_compiled.save(os.path.basename(model_path) + "-lammps_charge.pt")
     else:
         if (model_name not in ['EnergyChargesMACE', 'AtomicsChargesMACE']):
             message = '{:s} is not a charge model! Will ignore the given ' + \
@@ -34,7 +34,7 @@ def main():
             warnings.warn(message.format(sys.argv[1]))
             lammps_model = LAMMPS_MACE(model)
             lammps_model_compiled = jit.compile(lammps_model)
-            lammps_model_compiled.save(model_path + "-lammps.pt")
+            lammps_model_compiled.save(os.path.basename(model_path) + "-lammps.pt")
         else:
             # This is so crap, I am so retarded ...
             with open('charge_cv_expr.py', 'w') as fp:
@@ -45,7 +45,7 @@ def main():
                 print(function, file=fp)
             lammps_model = LAMMPS_MACE_CHARGE(model)
             lammps_model_compiled = jit.compile(lammps_model)
-            lammps_model_compiled.save(model_path + "-lammps_charge.pt")
+            lammps_model_compiled.save(os.path.basename(model_path) + "-lammps_charge.pt")
             os.remove('charge_cv_expr.py')
 
 
