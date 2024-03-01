@@ -980,6 +980,7 @@ class EnergyDipolesMACE(torch.nn.Module):
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
             energies.append(energy)
+            node_energies_list.append(node_energies)
             node_dipoles = node_out[:, 1:]
             dipoles.append(node_dipoles)
 
@@ -1424,6 +1425,7 @@ class EnergyChargesMACE(torch.nn.Module):
                 src=node_energies, index=data["batch"], dim=-1, dim_size=num_graphs
             )  # [n_graphs,]
             energies.append(energy)
+            node_energies_list.append(node_energies)
             node_charges = node_out[:, 1]
             charges.append(node_charges)
             total_charge = scatter_sum(
