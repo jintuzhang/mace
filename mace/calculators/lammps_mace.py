@@ -215,6 +215,7 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
             "virials": virials,
             "total_charge": total_charge[0],
             "total_charge_gradients": total_charge_gradients,
+            "charges": charges,
             "charge_cv": charge_cv,
             "charge_cv_gradients": charge_cv_gradients,
         }
