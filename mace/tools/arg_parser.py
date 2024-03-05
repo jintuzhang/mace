@@ -498,6 +498,20 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         default=False,
     )
     parser.add_argument(
+        "--atom_group_weights",
+        help="Dictionary of weights of different atom groups",
+        type=str,
+        default=None,
+        required=False,
+    )
+    parser.add_argument(
+        "--element_group_weights",
+        help="Dictionary of weights of different element groups",
+        type=str,
+        default=None,
+        required=False,
+    )
+    parser.add_argument(
         "--wandb_log_hypers",
         help="The hyperparameters to log in Weights and Biases",
         type=list,

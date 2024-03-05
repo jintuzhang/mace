@@ -150,10 +150,38 @@ def main() -> None:
         )
         logging.info(f"Atomic energies: {atomic_energies.tolist()}")
 
+    if (args.atom_group_weights is not None):
+        try:
+            atom_group_weights_dict = ast.literal_eval(args.atom_group_weights)
+            assert isinstance(atom_group_weights_dict, dict)
+        except Exception as e:
+            raise RuntimeError(
+                f"atom_group_weights specified invalidly, error {e} occurred"
+            ) from e
+        logging.info(f"Atom group weights: {atom_group_weights_dict}")
+    else:
+        atom_group_weights_dict = None
+    if (args.element_group_weights is not None):
+        try:
+            element_group_weights_dict = ast.literal_eval(args.element_group_weights)
+            assert isinstance(element_group_weights_dict, dict)
+        except Exception as e:
+            raise RuntimeError(
+                f"element_group_weights specified invalidly, error {e} occurred"
+            ) from e
+        logging.info(f"Element group weights: {element_group_weights_dict}")
+    else:
+        element_group_weights_dict = None
+
     train_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
-            for config in collections.train
+            data.AtomicData.from_config(
+                config,
+                z_table=z_table,
+                cutoff=args.r_max,
+                atom_group_weights=atom_group_weights_dict,
+                element_group_weights=element_group_weights_dict
+            ) for config in collections.train
         ],
         batch_size=args.batch_size,
         shuffle=True,
@@ -161,8 +189,13 @@ def main() -> None:
     )
     valid_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
-            data.AtomicData.from_config(config, z_table=z_table, cutoff=args.r_max)
-            for config in collections.valid
+            data.AtomicData.from_config(
+                config,
+                z_table=z_table,
+                cutoff=args.r_max,
+                atom_group_weights=atom_group_weights_dict,
+                element_group_weights=element_group_weights_dict
+            ) for config in collections.valid
         ],
         batch_size=args.valid_batch_size,
         shuffle=False,
@@ -616,6 +649,8 @@ def main() -> None:
                 output_args=output_args,
                 log_wandb=args.wandb,
                 device=device,
+                atom_group_weights=atom_group_weights_dict,
+                element_group_weights=element_group_weights_dict
             )
             logging.info("\n" + str(table))
 

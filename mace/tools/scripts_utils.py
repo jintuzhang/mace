@@ -137,6 +137,8 @@ def create_error_table(
     output_args: Dict[str, bool],
     log_wandb: bool,
     device: str,
+    atom_group_weights: dict = None,
+    element_group_weights: dict = None
 ) -> PrettyTable:
     if log_wandb:
         import wandb
@@ -222,8 +224,13 @@ def create_error_table(
     for name, subset in all_collections:
         data_loader = torch_geometric.dataloader.DataLoader(
             dataset=[
-                AtomicData.from_config(config, z_table=z_table, cutoff=r_max)
-                for config in subset
+                AtomicData.from_config(
+                    config,
+                    z_table=z_table,
+                    cutoff=r_max,
+                    atom_group_weights=atom_group_weights,
+                    element_group_weights=element_group_weights
+                ) for config in subset
             ],
             batch_size=valid_batch_size,
             shuffle=False,
