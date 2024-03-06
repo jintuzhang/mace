@@ -88,7 +88,7 @@ class AtomicData(torch_geometric.data.Data):
         assert virials is None or virials.shape == (1, 3, 3)
         assert dipole is None or dipole.shape[-1] == 3
         assert charges is None or charges.shape == (num_nodes,)
-        assert peratom_weights is None or peratom_weights.shape == (num_nodes,)
+        assert peratom_weights == 1 or peratom_weights.shape == (num_nodes,)
         # Aggregate data
         data = {
             "num_nodes": num_nodes,
