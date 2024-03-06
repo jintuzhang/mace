@@ -41,6 +41,7 @@ class MACECalculator(Calculator):
         charges_key: str, Array field of atoms object where atomic charges are stored
         model_type: str, type of model to load
                     Options: [MACE, DipoleMACE, EnergyDipoleMACE, AtomicChargesMACE, EnergyChargesMACE]
+        charge_cv_expr: Callable, expression of the charge CV.
 
     Dipoles are returned in units of Debye
     """
@@ -54,12 +55,14 @@ class MACECalculator(Calculator):
         default_dtype="",
         charges_key="Qs",
         model_type="MACE",
+        charge_cv_expr=None,
         **kwargs,
     ):
         Calculator.__init__(self, **kwargs)
         self.results = {}
 
         self.model_type = model_type
+        self.charge_cv_expr = charge_cv_expr
 
         if model_type == "MACE":
             self.implemented_properties = [
@@ -82,6 +85,11 @@ class MACECalculator(Calculator):
             ]
         elif model_type == "AtomicChargesMACE":
             self.implemented_properties = ["charges"]
+            if (self.charge_cv_expr is not None):
+                self.implemented_properties.extend([
+                    "charge_cv",
+                    "charge_cv_gradients"
+                ])
         elif model_type == "EnergyChargesMACE":
             self.implemented_properties = [
                 "energy",
@@ -91,6 +99,11 @@ class MACECalculator(Calculator):
                 "stress",
                 "charges",
             ]
+            if (self.charge_cv_expr is not None):
+                self.implemented_properties.extend([
+                    "charge_cv",
+                    "charge_cv_gradients"
+                ])
         else:
             raise ValueError(
                 f"Give a valid model_type: [MACE, DipoleMACE, EnergyDipoleMACE, AtomicChargesMACE, EnergyChargesMACE], {model_type} not supported"
@@ -121,10 +134,14 @@ class MACECalculator(Calculator):
                 self.implemented_properties.extend(["dipole_var"])
             elif model_type == "AtomicChargesMACE":
                 self.implemented_properties.extend(["charges_var"])
+                if (self.charge_cv_expr is not None):
+                    self.implemented_properties.extend(["charge_cv_var"])
             elif model_type == "EnergyChargesMACE":
                 self.implemented_properties.extend(
                     ["energies", "energy_var", "forces_comm", "stress_var", "charges_var"]
                 )
+                if (self.charge_cv_expr is not None):
+                    self.implemented_properties.extend(["charge_cv_var"])
 
         self.models = [
             torch.load(f=model_path, map_location=device) for model_path in model_paths
@@ -194,7 +211,85 @@ class MACECalculator(Calculator):
         if model_type in ["EnergyChargesMACE", "AtomicChargesMACE"]:
             charges = torch.zeros(num_models, num_atoms, device=self.device)
             dict_of_tensors.update({"charges": charges})
+            if (self.charge_cv_expr is not None):
+                charge_cvs = torch.zeros(num_models, device=self.device)
+                dict_of_tensors.update({"charge_cvs": charge_cvs})
+                charge_cv_gradients = torch.zeros(num_models, num_atoms, 3, device=self.device)
+                dict_of_tensors.update({"charge_cv_gradients": charge_cv_gradients})
         return dict_of_tensors
+
+    def _get_outputs(
+        self,
+        energy: torch.Tensor,
+        positions: torch.Tensor,
+        displacement: torch.Tensor,
+        cell: torch.Tensor,
+        charges: torch.Tensor,
+        compute_force: bool = False,
+        compute_stress: bool = False,
+        compute_charge_cv: bool = False
+    ):
+        grad_outputs = torch.ones_like(energy)
+        if (compute_charge_cv):
+            charge_cv = [self.charge_cv_expr(charges)]
+            charge_cv = torch.stack(charge_cv, dim=-1)
+            charge_cv_gradients = torch.autograd.grad(
+                outputs=[charge_cv],
+                inputs=[positions],
+                grad_outputs=grad_outputs,
+                retain_graph=True,
+                create_graph=False,
+                allow_unused=True
+            )[0]
+            if charge_cv_gradients is None:
+                charge_cv_gradients = torch.zeros_like(positions)
+        else:
+            charge_cv = None
+            charge_cv_gradients = None
+        if compute_stress and displacement is not None:
+            forces, virials = torch.autograd.grad(
+                outputs=[energy],
+                inputs=[positions, displacement],
+                grad_outputs=grad_outputs,
+                retain_graph=False,
+                create_graph=False,
+                allow_unused=True,
+            )
+            if forces is None:
+                forces = torch.zeros_like(positions)
+            if virials is None:
+                virials = torch.zeros((1, 3, 3))
+            stress = torch.zeros_like(displacement)
+            cell = cell.view(-1, 3, 3)
+            volume = torch.einsum(
+                "zi,zi->z",
+                cell[:, 0, :],
+                torch.cross(cell[:, 1, :], cell[:, 2, :], dim=1),
+            ).unsqueeze(-1)
+            stress = virials / volume.view(-1, 1, 1)
+        elif compute_force:
+            gradient = torch.autograd.grad(
+                outputs=[energy],
+                inputs=[positions],
+                grad_outputs=grad_outputs,
+                retain_graph=False,
+                create_graph=False,
+                allow_unused=True,
+            )[0]
+            if gradient is None:
+                return torch.zeros_like(positions)
+            return -1 * gradient
+            if forces is None:
+                forces = torch.zeros_like(positions)
+            stress = None
+        output = {
+            "energy": energy,
+            "forces": -1 * forces,
+            "stress": stress,
+            "charge_cv": charge_cv,
+            "charge_cv_gradients": charge_cv_gradients,
+        }
+        return output
 
     # pylint: disable=dangerous-default-value
     def calculate(self, atoms=None, properties=None, system_changes=all_changes):
@@ -234,23 +329,37 @@ class MACECalculator(Calculator):
         )
         for i, model in enumerate(self.models):
             batch = batch_base.clone()
-            if self.model_type in ["AtomicChargesMACE", "EnergyChargesMACE"]:
-                out = model(
-                    batch.to_dict(),
-                    compute_stress=compute_stress,
-                )
-            else:
-                out = model(batch.to_dict(), compute_stress=compute_stress)
+            model_out = model(
+                batch.to_dict(),
+                training=False,
+                compute_force=False,
+                compute_virials=False,
+                compute_stress=False,
+                compute_displacement=compute_stress
+            )
+            out = self._get_outputs(
+                model_out["energy"],
+                batch["positions"],
+                model_out["displacement"],
+                batch["cell"],
+                model_out.get("charges", None),
+                compute_force=compute_stress,
+                compute_stress=compute_stress,
+                compute_charge_cv=bool(self.charge_cv_expr)
+            )
             if self.model_type in ["MACE", "EnergyDipoleMACE", "EnergyChargesMACE"]:
                 ret_tensors["energies"][i] = out["energy"].detach()
-                ret_tensors["node_energy"][i] = (out["node_energy"] - node_e0).detach()
+                ret_tensors["node_energy"][i] = (model_out["node_energy"] - node_e0).detach()
                 ret_tensors["forces"][i] = out["forces"].detach()
                 if out["stress"] is not None:
                     ret_tensors["stress"][i] = out["stress"].detach()
             if self.model_type in ["DipoleMACE", "EnergyDipoleMACE"]:
                 ret_tensors["dipole"][i] = out["dipole"].detach()
             if self.model_type in ["AtomicChargesMACE", "EnergyChargesMACE"]:
-                ret_tensors["charges"][i] = out["charges"].detach()
+                ret_tensors["charges"][i] = model_out["charges"].detach()
+                if (self.charge_cv_expr is not None):
+                    ret_tensors["charge_cvs"][i] = out["charge_cv"].detach()
+                    ret_tensors["charge_cv_gradients"][i] = out["charge_cv_gradients"].detach()
 
         self.results = {}
         if self.model_type in ["MACE", "EnergyDipoleMACE", "EnergyChargesMACE"]:
@@ -310,12 +419,24 @@ class MACECalculator(Calculator):
             self.results["charges"] = (
                 torch.mean(ret_tensors["charges"], dim=0).cpu().numpy()
             )
+            if (self.charge_cv_expr is not None):
+                self.results["charge_cv"] = (
+                    torch.mean(ret_tensors["charge_cvs"], dim=0).cpu().numpy()
+                )
+                self.results["charge_cv_gradients"] = (
+                    torch.mean(ret_tensors["charge_cv_gradients"], dim=0).cpu().numpy()
+                    / self.length_units_to_A
+                )
             if self.num_models > 1:
                 self.results["charges_var"] = (
                     torch.var(ret_tensors["charges"], dim=0, unbiased=False)
                     .cpu()
                     .numpy()
                 )
+                if (self.charge_cv_expr is not None):
+                    self.results["charge_cv_var"] = (
+                        torch.mean(ret_tensors["charge_cvs"], dim=0).cpu().numpy()
+                    )
 
     def get_descriptors(self, atoms=None, invariants_only=True, num_layers=-1):
         """Extracts the descriptors from MACE model.
