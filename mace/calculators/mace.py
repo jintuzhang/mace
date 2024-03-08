@@ -229,10 +229,10 @@ class MACECalculator(Calculator):
         compute_stress: bool = False,
         compute_charge_cv: bool = False
     ):
-        grad_outputs = torch.ones_like(energy)
         if (compute_charge_cv):
             charge_cv = [self.charge_cv_expr(charges)]
             charge_cv = torch.stack(charge_cv, dim=-1)
+            grad_outputs = torch.ones_like(charge_cv)
             charge_cv_gradients = torch.autograd.grad(
                 outputs=[charge_cv],
                 inputs=[positions],
@@ -247,6 +247,7 @@ class MACECalculator(Calculator):
             charge_cv = None
             charge_cv_gradients = None
         if compute_stress and displacement is not None:
+            grad_outputs = torch.ones_like(energy)
             forces, virials = torch.autograd.grad(
                 outputs=[energy],
                 inputs=[positions, displacement],
@@ -267,8 +268,10 @@ class MACECalculator(Calculator):
                 torch.cross(cell[:, 1, :], cell[:, 2, :], dim=1),
             ).unsqueeze(-1)
             stress = virials / volume.view(-1, 1, 1)
+            forces *= -1
         elif compute_force:
-            gradient = torch.autograd.grad(
+            grad_outputs = torch.ones_like(energy)
+            forces = torch.autograd.grad(
                 outputs=[energy],
                 inputs=[positions],
                 grad_outputs=grad_outputs,
@@ -276,15 +279,16 @@ class MACECalculator(Calculator):
                 create_graph=False,
                 allow_unused=True,
             )[0]
-            if gradient is None:
-                return torch.zeros_like(positions)
-            return -1 * gradient
             if forces is None:
                 forces = torch.zeros_like(positions)
             stress = None
+            forces *= -1
+        else:
+            stress = None
+            forces = None
         output = {
             "energy": energy,
-            "forces": -1 * forces,
+            "forces": forces,
             "stress": stress,
             "charge_cv": charge_cv,
             "charge_cv_gradients": charge_cv_gradients,
@@ -338,9 +342,9 @@ class MACECalculator(Calculator):
                 compute_displacement=compute_stress
             )
             out = self._get_outputs(
-                model_out["energy"],
+                model_out.get("energy"),
                 batch["positions"],
-                model_out["displacement"],
+                model_out.get("displacement"),
                 batch["cell"],
                 model_out.get("charges", None),
                 compute_force=compute_stress,

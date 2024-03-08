@@ -1163,7 +1163,7 @@ class AtomicChargesMACE(torch.nn.Module):
         compute_virials: bool = False,
         compute_stress: bool = False,
         compute_displacement: bool = False,
-    ) -> Dict[str, Optional[torch.Tensor]]:
+    ) -> Dict[str, torch.Tensor]:
         assert compute_force is False
         assert compute_virials is False
         assert compute_stress is False
