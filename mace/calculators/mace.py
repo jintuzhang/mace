@@ -7,7 +7,7 @@
 
 from glob import glob
 from pathlib import Path
-from typing import Union
+from typing import Union, Dict
 
 import numpy as np
 import torch
@@ -220,16 +220,19 @@ class MACECalculator(Calculator):
 
     def _get_outputs(
         self,
-        energy: torch.Tensor,
-        positions: torch.Tensor,
-        displacement: torch.Tensor,
-        cell: torch.Tensor,
-        charges: torch.Tensor,
+        model_output: dict,
+        batch: Dict[str, torch.Tensor],
         compute_force: bool = False,
         compute_stress: bool = False,
         compute_charge_cv: bool = False
     ):
-        if (compute_charge_cv):
+        cell = batch["cell"]
+        positions = batch["positions"]
+        energy = model_output.get("energy")
+        charges = model_output.get("charges")
+        node_energy = model_output.get("node_energy")
+        displacement = model_output.get("displacement")
+        if (compute_charge_cv and charges is not None):
             charge_cv = [self.charge_cv_expr(charges)]
             charge_cv = torch.stack(charge_cv, dim=-1)
             grad_outputs = torch.ones_like(charge_cv)
@@ -290,7 +293,9 @@ class MACECalculator(Calculator):
             "energy": energy,
             "forces": forces,
             "stress": stress,
+            "charges": charges,
             "charge_cv": charge_cv,
+            "node_energy": node_energy,
             "charge_cv_gradients": charge_cv_gradients,
         }
         return output
@@ -342,25 +347,22 @@ class MACECalculator(Calculator):
                 compute_displacement=compute_stress
             )
             out = self._get_outputs(
-                model_out.get("energy"),
-                batch["positions"],
-                model_out.get("displacement"),
-                batch["cell"],
-                model_out.get("charges", None),
+                model_out,
+                batch,
                 compute_force=compute_stress,
                 compute_stress=compute_stress,
                 compute_charge_cv=bool(self.charge_cv_expr)
             )
             if self.model_type in ["MACE", "EnergyDipoleMACE", "EnergyChargesMACE"]:
                 ret_tensors["energies"][i] = out["energy"].detach()
-                ret_tensors["node_energy"][i] = (model_out["node_energy"] - node_e0).detach()
+                ret_tensors["node_energy"][i] = (out["node_energy"] - node_e0).detach()
                 ret_tensors["forces"][i] = out["forces"].detach()
                 if out["stress"] is not None:
                     ret_tensors["stress"][i] = out["stress"].detach()
             if self.model_type in ["DipoleMACE", "EnergyDipoleMACE"]:
                 ret_tensors["dipole"][i] = out["dipole"].detach()
             if self.model_type in ["AtomicChargesMACE", "EnergyChargesMACE"]:
-                ret_tensors["charges"][i] = model_out["charges"].detach()
+                ret_tensors["charges"][i] = out["charges"].detach()
                 if (self.charge_cv_expr is not None):
                     ret_tensors["charge_cvs"][i] = out["charge_cv"].detach()
                     ret_tensors["charge_cv_gradients"][i] = out["charge_cv_gradients"].detach()
