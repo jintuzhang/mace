@@ -121,6 +121,7 @@ def main() -> None:
         else:
             compute_energy = True
             compute_dipole = False
+            compute_charges = False
         if atomic_energies_dict is None or len(atomic_energies_dict) == 0:
             if args.E0s is not None:
                 logging.info(
