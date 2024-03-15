@@ -514,7 +514,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--wandb_log_hypers",
         help="The hyperparameters to log in Weights and Biases",
-        type=list,
+        type=liststr_or_str,
         default=[
             "num_channels",
             "max_L",
@@ -547,3 +547,8 @@ def listint_or_int(value: Union[str, int]) -> Union[List[int], int]:
     if isinstance(value, str):
         return ast.literal_eval(value)
     return int(value)
+
+def liststr_or_str(value: Union[str, List[str]]) -> Union[List[str], str]:
+    if isinstance(value, str):
+        return ast.literal_eval(value)
+    return value
