@@ -195,11 +195,11 @@ def train(
                 )
             if log_wandb:
                 wandb_log_dict = {
-                    "epoch": epoch,
-                    "valid_loss": valid_loss,
-                    "valid_rmse_e_per_atom": eval_metrics["rmse_e_per_atom"],
-                    "valid_rmse_f": eval_metrics["rmse_f"],
-                }
+                                "valid_loss": valid_loss,
+                                "epoch": epoch,
+                                }
+                for k,v in eval_metrics.items():
+                    wandb_log_dict[f'valid_{k}']=v
                 wandb.log(wandb_log_dict)
             if valid_loss >= lowest_loss:
                 patience_counter += 1
