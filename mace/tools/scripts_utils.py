@@ -203,13 +203,13 @@ def create_error_table(
     elif table_type == "ChargesMAE":
         table.field_names = [
             "config_type",
-            "MAE C / mC",
+            "MAE C / mq",
             "relative C MAE %",
         ]
     elif table_type == "ChargesRMSE":
         table.field_names = [
             "config_type",
-            "RMSE C / mC",
+            "RMSE C / mq",
             "relative C RMSE %",
         ]
     elif table_type == "EnergyChargesRMSE":
@@ -218,7 +218,7 @@ def create_error_table(
             "RMSE E / meV / atom",
             "RMSE F / meV / A",
             "rel F RMSE %",
-            "RMSE C / mC",
+            "RMSE C / mq",
             "rel C RMSE %",
         ]
     for name, subset in all_collections:
