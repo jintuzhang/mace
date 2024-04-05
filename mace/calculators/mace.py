@@ -441,7 +441,9 @@ class MACECalculator(Calculator):
                 )
                 if (self.charge_cv_expr is not None):
                     self.results["charge_cv_var"] = (
-                        torch.mean(ret_tensors["charge_cvs"], dim=0).cpu().numpy()
+                        torch.var(ret_tensors["charge_cvs"], dim=0, unbiased=False)
+                        .cpu()
+                        .numpy()
                     )
 
     def get_descriptors(self, atoms=None, invariants_only=True, num_layers=-1):
