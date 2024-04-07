@@ -303,6 +303,9 @@ def evaluate(
     C_computed = False
     delta_cs_list = []
     cs_list = []
+    n_groups = 0
+    delta_cs_list_groups = []
+    cs_list_groups = []
 
     start_time = time.time()
     for batch in data_loader:
@@ -320,6 +323,13 @@ def evaluate(
 
         loss = loss_fn(pred=output, ref=batch)
         total_loss += to_numpy(loss).item()
+
+        if hasattr(batch, "groups") is not None and hasattr(batch, "num_groups") is not None:
+            n_groups = batch.num_groups[0].item()
+            if cs_list_groups == []:
+                cs_list_groups = [[] for _ in range(n_groups)]
+            if delta_cs_list_groups == []:
+                delta_cs_list_groups = [[] for _ in range(n_groups)]
 
         if output.get("energy") is not None and batch.energy is not None:
             E_computed = True
@@ -357,6 +367,13 @@ def evaluate(
             C_computed = True
             delta_cs_list.append(batch.charges - output["charges"])
             cs_list.append(batch.charges)
+            if n_groups != 0:
+                for j in range(n_groups):
+                    atom_indices = batch.groups == j
+                    delta_cs_list_groups[j].append(
+                        batch.charges[atom_indices] - output["charges"][atom_indices]
+                    )
+                    cs_list_groups[j].append(batch.charges[atom_indices])
 
     avg_loss = total_loss / len(data_loader)
 
@@ -413,6 +430,15 @@ def evaluate(
         aux["rmse_c"] = compute_rmse(delta_cs)
         aux["rel_rmse_c"] = compute_rel_rmse(delta_cs, cs)
         aux["q95_c"] = compute_q95(delta_cs)
+        if n_groups != 0:
+            for j in range(n_groups):
+                delta_cs = to_numpy(torch.cat(delta_cs_list_groups[j], dim=0))
+                cs = to_numpy(torch.cat(cs_list_groups[j], dim=0))
+                aux[f"mae_c_g{j}"] = compute_mae(delta_cs)
+                aux[f"rel_mae_c_g{j}"] = compute_rel_mae(delta_cs, cs)
+                aux[f"rmse_c_g{j}"] = compute_rmse(delta_cs)
+                aux[f"rel_rmse_c_g{j}"] = compute_rel_rmse(delta_cs, cs)
+                aux[f"q95_c_g{j}"] = compute_q95(delta_cs)
 
     aux["time"] = time.time() - start_time
 

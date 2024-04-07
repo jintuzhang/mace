@@ -44,6 +44,8 @@ class AtomicData(torch_geometric.data.Data):
     virials_weight: torch.Tensor
     charges_weight: torch.Tensor
     peratom_weights: torch.Tensor
+    num_groups: torch.Tensor
+    groups: torch.Tensor
 
     def __init__(
         self,
@@ -66,6 +68,8 @@ class AtomicData(torch_geometric.data.Data):
         dipole: Optional[torch.Tensor],  # [, 3]
         charges: Optional[torch.Tensor],  # [n_nodes, ]
         peratom_weights: Optional[torch.Tensor],  # [n_nodes, ]
+        num_groups: Optional[torch.Tensor],  # [, ]
+        groups: Optional[torch.Tensor],  # [n_nodes, ]
     ):
         # Check shapes
         num_nodes = node_attrs.shape[0]
@@ -89,6 +93,8 @@ class AtomicData(torch_geometric.data.Data):
         assert dipole is None or dipole.shape[-1] == 3
         assert charges is None or charges.shape == (num_nodes,)
         assert peratom_weights is None or peratom_weights.shape == (num_nodes,)
+        assert num_groups is None or num_groups.shape == ()
+        assert groups is None or groups.shape == (num_nodes,)
         # Aggregate data
         data = {
             "num_nodes": num_nodes,
@@ -111,6 +117,8 @@ class AtomicData(torch_geometric.data.Data):
             "dipole": dipole,
             "charges": charges,
             "peratom_weights": peratom_weights,
+            "num_groups": num_groups,
+            "groups": groups
         }
         super().__init__(**data)
 
@@ -211,6 +219,8 @@ class AtomicData(torch_geometric.data.Data):
             else None
         )
         if (element_group_weights is None and atom_group_weights is None):
+            groups = None
+            num_groups = None
             peratom_weights = torch.ones(len(config.positions), dtype=torch.get_default_dtype())
         elif (element_group_weights is not None and atom_group_weights is not None):
             raise RuntimeError('atom_group_weights and element_group_weights should not be specified at the same time!')
@@ -219,21 +229,31 @@ class AtomicData(torch_geometric.data.Data):
         elif (atom_group_weights is not None):
             group_list = config.group.tolist()
             peratom_weights = torch.ones(len(config.positions), dtype=torch.get_default_dtype())
-            for i in set(config.group):
-                if (i not in atom_group_weights.keys()):
-                    raise RuntimeError('can not find weight for group {:d}!'.format(i))
-                weight_avg = atom_group_weights[i] / group_list.count(i)
-                peratom_weights[config.group == i] = weight_avg
+            if not all([w == 0 for w in atom_group_weights.values()]):
+                for i in set(config.group):
+                    if (i not in atom_group_weights.keys()):
+                        raise RuntimeError('can not find weight for group {:d}!'.format(i))
+                    elif (atom_group_weights[i] == 0):
+                        raise RuntimeError('zero weight found for group {:d}!'.format(i))
+                    weight_avg = atom_group_weights[i] / group_list.count(i)
+                    peratom_weights[config.group == i] = weight_avg
             peratom_weights *= len(config.positions) / sum(peratom_weights)
+            num_groups = torch.tensor(len(atom_group_weights), dtype=torch.long)
+            groups = torch.tensor(group_list, dtype=torch.long)
         elif (element_group_weights is not None):
             atomic_numbers_list = config.atomic_numbers.tolist()
             peratom_weights = torch.ones(len(config.positions), dtype=torch.get_default_dtype())
-            for i in set(config.atomic_numbers):
-                if (i not in element_group_weights.keys()):
-                    raise RuntimeError('can not find weight for element number {:d}!'.format(i))
-                weight_avg = element_group_weights[i] / atomic_numbers_list.count(i)
-                peratom_weights[config.atomic_numbers == i] = weight_avg
+            if not all([w == 0 for w in element_group_weights.values()]):
+                for i in set(config.atomic_numbers):
+                    if (i not in element_group_weights.keys()):
+                        raise RuntimeError('can not find weight for element number {:d}!'.format(i))
+                    elif (element_group_weights[i] == 0):
+                        raise RuntimeError('zero weight found for element number {:d}!'.format(i))
+                    weight_avg = element_group_weights[i] / atomic_numbers_list.count(i)
+                    peratom_weights[config.atomic_numbers == i] = weight_avg
             peratom_weights *= len(config.positions) / sum(peratom_weights)
+            num_groups = torch.tensor(len(element_group_weights), dtype=torch.long)
+            groups = torch.tensor(indices, dtype=torch.long)
 
         return cls(
             edge_index=torch.tensor(edge_index, dtype=torch.long),
@@ -254,7 +274,9 @@ class AtomicData(torch_geometric.data.Data):
             virials=virials,
             dipole=dipole,
             charges=charges,
-            peratom_weights=peratom_weights
+            peratom_weights=peratom_weights,
+            num_groups=num_groups,
+            groups=groups
         )
 
 
