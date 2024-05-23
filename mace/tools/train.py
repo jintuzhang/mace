@@ -324,7 +324,7 @@ def evaluate(
         loss = loss_fn(pred=output, ref=batch)
         total_loss += to_numpy(loss).item()
 
-        if hasattr(batch, "groups") is not None and hasattr(batch, "num_groups") is not None:
+        if getattr(batch, "groups", None) is not None and getattr(batch, "num_groups", None) is not None:
             n_groups = batch.num_groups[0].item()
             if cs_list_groups == []:
                 cs_list_groups = [[] for _ in range(n_groups)]
