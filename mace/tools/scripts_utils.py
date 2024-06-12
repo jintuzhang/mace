@@ -137,6 +137,8 @@ def create_error_table(
     output_args: Dict[str, bool],
     log_wandb: bool,
     device: str,
+    atom_group_weights: dict = None,
+    element_group_weights: dict = None
 ) -> PrettyTable:
     if log_wandb:
         import wandb
@@ -201,13 +203,13 @@ def create_error_table(
     elif table_type == "ChargesMAE":
         table.field_names = [
             "config_type",
-            "MAE C / mC",
+            "MAE C / mq",
             "relative C MAE %",
         ]
     elif table_type == "ChargesRMSE":
         table.field_names = [
             "config_type",
-            "RMSE C / mC",
+            "RMSE C / mq",
             "relative C RMSE %",
         ]
     elif table_type == "EnergyChargesRMSE":
@@ -216,14 +218,19 @@ def create_error_table(
             "RMSE E / meV / atom",
             "RMSE F / meV / A",
             "rel F RMSE %",
-            "RMSE C / mC",
+            "RMSE C / mq",
             "rel C RMSE %",
         ]
     for name, subset in all_collections:
         data_loader = torch_geometric.dataloader.DataLoader(
             dataset=[
-                AtomicData.from_config(config, z_table=z_table, cutoff=r_max)
-                for config in subset
+                AtomicData.from_config(
+                    config,
+                    z_table=z_table,
+                    cutoff=r_max,
+                    atom_group_weights=atom_group_weights,
+                    element_group_weights=element_group_weights
+                ) for config in subset
             ],
             batch_size=valid_batch_size,
             shuffle=False,
@@ -337,30 +344,113 @@ def create_error_table(
                 ]
             )
         elif table_type == "ChargesMAE":
-            table.add_row(
-                [
-                    name,
-                    f"{metrics['mae_c'] * 1000:.2f}",
-                    f"{metrics['rel_mae_c']:.1f}",
-                ]
-            )
+            if atom_group_weights is None and element_group_weights is None:
+                table.add_row(
+                    [
+                        name,
+                        f"{metrics['mae_c'] * 1000:.2f}",
+                        f"{metrics['rel_mae_c']:.1f}",
+                    ]
+                )
+            elif atom_group_weights is not None:
+                mae_c = ''
+                rel_mae_c = ''
+                for j in range(len(atom_group_weights)):
+                    mae_c = mae_c + 'g{:d}: {:.2f} '.format(
+                        j, metrics[f'mae_c_g{j}'] * 1000
+                    )
+                    rel_mae_c = rel_mae_c + 'g{:d}:  {:.1f} '.format(
+                        j, metrics[f'rel_mae_c_g{j}']
+                    )
+                table.add_row([name, mae_c, rel_mae_c])
+            elif element_group_weights is not None:
+                mae_c = ''
+                rel_mae_c = ''
+                for j in range(len(element_group_weights)):
+                    mae_c = mae_c + '{:d}: {:.2f} '.format(
+                        z_table.index_to_z(j), metrics[f'mae_c_g{j}'] * 1000
+                    )
+                    rel_mae_c = rel_mae_c + '{:d}:  {:.1f} '.format(
+                        z_table.index_to_z(j), metrics[f'rel_mae_c_g{j}']
+                    )
+                table.add_row([name, mae_c, rel_mae_c])
         elif table_type == "ChargesRMSE":
-            table.add_row(
-                [
-                    name,
-                    f"{metrics['rmse_c'] * 1000:.2f}",
-                    f"{metrics['rel_rmse_c']:.1f}",
-                ]
-            )
+            if atom_group_weights is None and element_group_weights is None:
+                table.add_row(
+                    [
+                        name,
+                        f"{metrics['rmse_c'] * 1000:.2f}",
+                        f"{metrics['rel_rmse_c']:.1f}",
+                    ]
+                )
+            elif atom_group_weights is not None:
+                rmse_c = ''
+                rel_rmse_c = ''
+                for j in range(len(atom_group_weights)):
+                    rmse_c = rmse_c + 'g{:d}: {:.2f} '.format(
+                        j, metrics[f'rmse_c_g{j}'] * 1000
+                    )
+                    rel_rmse_c = rel_rmse_c + 'g{:d}:  {:.1f} '.format(
+                        j, metrics[f'rel_rmse_c_g{j}']
+                    )
+                table.add_row([name, rmse_c, rel_rmse_c])
+            elif element_group_weights is not None:
+                rmse_c = ''
+                rel_rmse_c = ''
+                for j in range(len(element_group_weights)):
+                    rmse_c = rmse_c + '{:d}: {:.2f} '.format(
+                        z_table.index_to_z(j), metrics[f'rmse_c_g{j}'] * 1000
+                    )
+                    rel_rmse_c = rel_rmse_c + '{:d}:  {:.1f} '.format(
+                        z_table.index_to_z(j), metrics[f'rel_rmse_c_g{j}']
+                    )
+                table.add_row([name, rmse_c, rel_rmse_c])
         elif table_type == "EnergyChargesRMSE":
-            table.add_row(
-                [
+            if atom_group_weights is None and element_group_weights is None:
+                table.add_row(
+                    [
+                        name,
+                        f"{metrics['rmse_e_per_atom'] * 1000:.1f}",
+                        f"{metrics['rmse_f'] * 1000:.1f}",
+                        f"{metrics['rel_rmse_f']:.1f}",
+                        f"{metrics['rmse_c'] * 1000:.1f}",
+                        f"{metrics['rel_rmse_c']:.1f}",
+                    ]
+                )
+            elif atom_group_weights is not None:
+                rmse_c = ''
+                rel_rmse_c = ''
+                for j in range(len(atom_group_weights)):
+                    rmse_c = rmse_c + 'g{:d}: {:.2f} '.format(
+                        j, metrics[f'rmse_c_g{j}'] * 1000
+                    )
+                    rel_rmse_c = rel_rmse_c + 'g{:d}:  {:.1f} '.format(
+                        j, metrics[f'rel_rmse_c_g{j}']
+                    )
+                table.add_row([
                     name,
                     f"{metrics['rmse_e_per_atom'] * 1000:.1f}",
                     f"{metrics['rmse_f'] * 1000:.1f}",
                     f"{metrics['rel_rmse_f']:.1f}",
-                    f"{metrics['rmse_c'] * 1000:.1f}",
-                    f"{metrics['rel_rmse_c']:.1f}",
-                ]
-            )
+                    rmse_c,
+                    rel_rmse_c
+                ])
+            elif element_group_weights is not None:
+                rmse_c = ''
+                rel_rmse_c = ''
+                for j in range(len(element_group_weights)):
+                    rmse_c = rmse_c + '{:d}: {:.2f} '.format(
+                        z_table.index_to_z(j), metrics[f'rmse_c_g{j}'] * 1000
+                    )
+                    rel_rmse_c = rel_rmse_c + '{:d}:  {:.1f} '.format(
+                        z_table.index_to_z(j), metrics[f'rel_rmse_c_g{j}']
+                    )
+                table.add_row([
+                    name,
+                    f"{metrics['rmse_e_per_atom'] * 1000:.1f}",
+                    f"{metrics['rmse_f'] * 1000:.1f}",
+                    f"{metrics['rel_rmse_f']:.1f}",
+                    rmse_c,
+                    rel_rmse_c
+                ])
     return table

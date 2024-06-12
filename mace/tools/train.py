@@ -184,22 +184,22 @@ def train(
             elif log_errors == "ChargesRMSE":
                 error_c = eval_metrics["rmse_c"] * 1e3
                 logging.info(
-                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_C={error_c:.2f} mC"
+                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_C={error_c:.2f} mq"
                 )
             elif log_errors == "EnergyChargesRMSE":
                 error_e = eval_metrics["rmse_e_per_atom"] * 1e3
                 error_f = eval_metrics["rmse_f"] * 1e3
                 error_c = eval_metrics["rmse_c"] * 1e3
                 logging.info(
-                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_E_per_atom={error_e:.1f} meV, RMSE_F={error_f:.1f} meV / A, RMSE_C={error_c:.2f} mC"
+                    f"Epoch {epoch}: loss={valid_loss:.4f}, RMSE_E_per_atom={error_e:.1f} meV, RMSE_F={error_f:.1f} meV / A, RMSE_C={error_c:.2f} mq"
                 )
             if log_wandb:
                 wandb_log_dict = {
-                    "epoch": epoch,
-                    "valid_loss": valid_loss,
-                    "valid_rmse_e_per_atom": eval_metrics["rmse_e_per_atom"],
-                    "valid_rmse_f": eval_metrics["rmse_f"],
-                }
+                                "valid_loss": valid_loss,
+                                "epoch": epoch,
+                                }
+                for k,v in eval_metrics.items():
+                    wandb_log_dict[f'valid_{k}']=v
                 wandb.log(wandb_log_dict)
             if valid_loss >= lowest_loss:
                 patience_counter += 1
@@ -303,6 +303,9 @@ def evaluate(
     C_computed = False
     delta_cs_list = []
     cs_list = []
+    n_groups = 0
+    delta_cs_list_groups = []
+    cs_list_groups = []
 
     start_time = time.time()
     for batch in data_loader:
@@ -320,6 +323,13 @@ def evaluate(
 
         loss = loss_fn(pred=output, ref=batch)
         total_loss += to_numpy(loss).item()
+
+        if getattr(batch, "groups", None) is not None and getattr(batch, "num_groups", None) is not None:
+            n_groups = batch.num_groups[0].item()
+            if cs_list_groups == []:
+                cs_list_groups = [[] for _ in range(n_groups)]
+            if delta_cs_list_groups == []:
+                delta_cs_list_groups = [[] for _ in range(n_groups)]
 
         if output.get("energy") is not None and batch.energy is not None:
             E_computed = True
@@ -357,6 +367,13 @@ def evaluate(
             C_computed = True
             delta_cs_list.append(batch.charges - output["charges"])
             cs_list.append(batch.charges)
+            if n_groups != 0:
+                for j in range(n_groups):
+                    atom_indices = batch.groups == j
+                    delta_cs_list_groups[j].append(
+                        batch.charges[atom_indices] - output["charges"][atom_indices]
+                    )
+                    cs_list_groups[j].append(batch.charges[atom_indices])
 
     avg_loss = total_loss / len(data_loader)
 
@@ -413,6 +430,15 @@ def evaluate(
         aux["rmse_c"] = compute_rmse(delta_cs)
         aux["rel_rmse_c"] = compute_rel_rmse(delta_cs, cs)
         aux["q95_c"] = compute_q95(delta_cs)
+        if n_groups != 0:
+            for j in range(n_groups):
+                delta_cs = to_numpy(torch.cat(delta_cs_list_groups[j], dim=0))
+                cs = to_numpy(torch.cat(cs_list_groups[j], dim=0))
+                aux[f"mae_c_g{j}"] = compute_mae(delta_cs)
+                aux[f"rel_mae_c_g{j}"] = compute_rel_mae(delta_cs, cs)
+                aux[f"rmse_c_g{j}"] = compute_rmse(delta_cs)
+                aux[f"rel_rmse_c_g{j}"] = compute_rel_rmse(delta_cs, cs)
+                aux[f"q95_c_g{j}"] = compute_q95(delta_cs)
 
     aux["time"] = time.time() - start_time
 
