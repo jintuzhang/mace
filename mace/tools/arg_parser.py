@@ -338,7 +338,7 @@ def build_default_arg_parser() -> argparse.ArgumentParser:
         "--dipole_weight", help="weight of dipoles loss", type=float, default=1.0
     )
     parser.add_argument(
-        "--charges_weight", help="weight of charges loss", type=float, default=1.0
+        "--charges_weight", help="weight of charges loss", type=float, default=100.0
     )
     parser.add_argument(
         "--swa_dipole_weight",
