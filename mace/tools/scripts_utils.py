@@ -246,14 +246,36 @@ def create_error_table(
             device=device,
         )
         if log_wandb:
-            wandb_log_dict = {
-                name
-                + "_final_rmse_e_per_atom": metrics["rmse_e_per_atom"]
-                * 1e3,  # meV / atom
-                name + "_final_rmse_f": metrics["rmse_f"] * 1e3,  # meV / A
-                name + "_final_rel_rmse_f": metrics["rel_rmse_f"],
-            }
+            wandb_log_dict = {}
+            if "rmse_e_per_atom" in metrics:
+                wandb_log_dict[name + "_final_rmse_e_per_atom"] =  metrics["rmse_e_per_atom"] * 1e3
+            if "rmse_f" in metrics:
+                wandb_log_dict[name + "_final_rmse_f"] =  metrics["rmse_f"] * 1e3
+            if "rmse_c" in metrics:
+                wandb_log_dict[name + "_final_rmse_c"] =  metrics["rmse_c"] * 1e3
+            if "mae_e_per_atom" in metrics:
+                wandb_log_dict[name + "_final_mae_e_per_atom"] =  metrics["mae_e_per_atom"] * 1e3
+            if "mae_f" in metrics:
+                wandb_log_dict[name + "_final_mae_f"] =  metrics["mae_f"] * 1e3
+            if "mae_c" in metrics:
+                wandb_log_dict[name + "_final_mae_c"] =  metrics["mae_c"] * 1e3
+            if "rel_rmse_f" in metrics:
+                wandb_log_dict[name + "_final_rel_rmse_f"] =  metrics["rel_rmse_f"]
+            if "rel_rmse_c" in metrics:
+                wandb_log_dict[name + "_final_rel_rmse_c"] =  metrics["rel_rmse_c"]
+            if (atom_group_weights is not None) and ("rmse_c" in metrics):
+                for j in range(len(atom_group_weights)):
+                    wandb_log_dict[name + f"_final_mae_c_{j}"] =  metrics[f'mae_c_g{j}'] * 1e3
+                    wandb_log_dict[name + f"_final_rmse_c_{j}"] =  metrics[f'rmse_c_g{j}'] * 1e3
+                    wandb_log_dict[name + f"_final_rel_rmse_c_{j}"] =  metrics[f'rel_rmse_c_g{j}']
+            elif element_group_weights is not None:
+                for j in range(len(element_group_weights)):
+                    wandb_log_dict[name + f"_final_mae_c_{z_table.index_to_z(j)}"] =  metrics[f'mae_c_g{j}'] * 1e3
+                    wandb_log_dict[name + f"_final_rmse_c_{z_table.index_to_z(j)}"] =  metrics[f'rmse_c_g{j}'] * 1e3
+                    wandb_log_dict[name + f"_final_rel_rmse_c_{z_table.index_to_z(j)}"] =  metrics[f'rel_rmse_c_g{j}']
+
             wandb.log(wandb_log_dict)
+            
         if table_type == "TotalRMSE":
             table.add_row(
                 [
