@@ -107,7 +107,8 @@ class LAMMPS_MACE_CHARGE(LAMMPS_MACE):
             file = __import__('charge_cv_expr')
             self.charge_cv_expr = file.function
             self.charge_cv_expr_string = file.expr
-        except ImportError:
+        except ImportError as e:
+            print(e)
             self.has_charge_cv_expr = False
             self.charge_cv_expr = torch.tensor  # to fake the compiler
             self.charge_cv_expr_string = '(none)'

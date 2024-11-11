@@ -21,6 +21,7 @@ Stress = np.ndarray  # [6, ], [3,3], [9, ]
 Virials = np.ndarray  # [6, ], [3,3], [9, ]
 Charges = np.ndarray  # [..., 1]
 Cell = np.ndarray  # [3,3]
+Group = np.ndarray  # [..., 1]
 Pbc = tuple  # (3,)
 
 DEFAULT_CONFIG_TYPE = "Default"
@@ -39,6 +40,7 @@ class Configuration:
     charges: Optional[Charges] = None  # atomic unit
     cell: Optional[Cell] = None
     pbc: Optional[Pbc] = None
+    group: Optional[Group] = None
 
     weight: float = 1.0  # weight of config in loss
     energy_weight: float = 1.0  # weight of config energy in loss
@@ -109,6 +111,7 @@ def config_from_atoms(
     virials_key="virials",
     dipole_key="dipole",
     charges_key="charges",
+    group_key="group",
     config_type_weights: Dict[str, float] = None,
 ) -> Configuration:
     """Convert ase.Atoms to Configuration"""
@@ -120,6 +123,14 @@ def config_from_atoms(
     stress = atoms.info.get(stress_key, None)  # eV / Ang
     virials = atoms.info.get(virials_key, None)
     dipole = atoms.info.get(dipole_key, None)  # Debye
+    group = atoms.arrays.get(group_key, None)
+    if (group is not None):
+        try:
+            group = np.array(group, dtype=int)
+        except Exception as e:
+            raise RuntimeError(
+                f"atom group labels in exyz files must be integers: {e}"
+            ) from e
     # Charges default to 0 instead of None if not found
     charges = atoms.arrays.get(charges_key, np.zeros(len(atoms)))  # atomic unit
     atomic_numbers = np.array(
@@ -172,6 +183,7 @@ def config_from_atoms(
         config_type=config_type,
         pbc=pbc,
         cell=cell,
+        group=group
     )
 
 
